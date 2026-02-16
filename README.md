@@ -37,15 +37,14 @@ Compare multiple query approaches to determine the most efficient solution based
 ## Project Structure
 ```
 SQL_2_Assignment_2/
-├── sql/                      # SQL query files
-├── execution-plans/          # Execution plan files organized by test scenario
+├── .sql                    # SQL query files
+├── execution-plans/        # Execution plan files organized by test scenario
 │   ├── original/            # Plans from initial FactInternetSales table
 │   ├── big-table/           # Plans from RawFactInternetSalesBig (100x data)
 │   ├── with-index/          # Plans with nonclustered index
 │   └── with-columnstore/    # Plans with columnstore index
-├── data/                     # Performance metrics (Excel)
-├── docs/                     # Full analysis report (PDF)
-└── demo/                     # Link to interactive demo
+├── .xlmx                   # Performance metrics (Excel)
+├── .pdf                    # Full analysis report (PDF)
 ```
 
 ---
