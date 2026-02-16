@@ -8,7 +8,7 @@
 
 ## Overview
 
-This project analyzes and compares the performance of three different SQL queries designed to identify the top-spending customer in the AdventureWorksDW2019 database. The analysis includes execution plans, resource utilization metrics, and indexing optimization strategies.
+This project analyzes and compares the performance of three different SQL query approaches to identify the top-spending customer in the AdventureWorksDW2019 database. The analysis includes comprehensive performance testing, execution plan analysis, and indexing optimization strategies.
 
 **Database:** AdventureWorksDW2019  
 **Tables Used:** 
@@ -21,15 +21,14 @@ This project analyzes and compares the performance of three different SQL querie
 
 ## Assignment Objective
 
-Retrieve information about the customer who has spent the most money, including:
-- Customer's first name
-- Customer's last name
+Retrieve information about the customer who has spent the most money:
+- Customer's first name and last name (required)
 - Total amount spent (optional)
 
 Compare multiple query approaches to determine the most efficient solution based on:
 - Execution plans
-- I/O statistics
-- Memory usage
+- I/O statistics (logical reads, physical reads)
+- Memory usage (Memory Granted)
 - CPU consumption
 
 ---
@@ -37,122 +36,282 @@ Compare multiple query approaches to determine the most efficient solution based
 ## Project Structure
 ```
 SQL_2_Assignment_2/
-├── .sql                    # SQL query files
-├── execution-plans/        # Execution plan files organized by test scenario
-│   ├── original/            # Plans from initial FactInternetSales table
-│   ├── big-table/           # Plans from RawFactInternetSalesBig (100x data)
-│   ├── with-index/          # Plans with nonclustered index
-│   └── with-columnstore/    # Plans with columnstore index
-├── .xlmx                   # Performance metrics (Excel)
-├── .pdf                    # Full analysis report (PDF)
+├── README.md                                    # This file
+├── sql/
+│   └── SQL_2_Assignment_2_CL.sql               # All queries and tests
+├── data/
+│   └── SQL_2_Assignment_2_CL.xlsx              # Performance metrics
+├── docs/
+│   └── SQL_2_Assignment_2_PDF.pdf              # Full analysis report (Swedish)
+└── execution-plans/                             # .sqlplan files (15 total)
+    ├── original/                               # Initial tests on FactInternetSales
+    │   ├── Query1.sqlplan
+    │   ├── Query2.sqlplan
+    │   └── Query3.sqlplan
+    ├── big-table/                              # Tests on RawFactInternetSalesBig
+    │   ├── Query1_BigTable.sqlplan
+    │   ├── Query2_BigTable.sqlplan
+    │   └── Query3_BigTable.sqlplan
+    ├── with-index/                             # Tests with nonclustered index
+    │   ├── Query1_With_Index.sqlplan
+    │   ├── Query2_With_Index.sqlplan
+    │   ├── Query3_With_Index.sqlplan
+    │   ├── Query1_BigTable_With_Index.sqlplan
+    │   ├── Query2_BigTable_With_Index.sqlplan
+    │   └── Query3_BigTable_With_Index.sqlplan
+    └── with-columnstore/                       # Tests with columnstore index
+        ├── Query1_With_Columnstore_Index.sqlplan
+        ├── Query2_With_Columnstore_Index.sqlplan
+        └── Query3_With_Columnstore_Index.sqlplan
 ```
 
 ---
 
-## Queries Implemented
+## Three Query Approaches
 
-### Query 1
-Uses aggregation with `GROUP BY` and returns both customer name and total sales amount.
+### Query 1: JOIN-Based Approach
+**Method:** Direct JOIN with GROUP BY aggregation
+```sql
+SELECT TOP 1
+    c.FirstName
+    ,c.LastName
+    ,SUM(f.SalesAmount) AS TotalSales
+FROM dbo.DimCustomer AS c
+JOIN dbo.FactInternetSales AS f
+    ON f.CustomerKey = c.CustomerKey
+GROUP BY
+    c.CustomerKey
+    ,c.FirstName
+    ,c.LastName
+ORDER BY
+    TotalSales DESC
+```
 
-**Features:**
-- Returns complete business information
-- Higher memory consumption (5648 KB)
-- Includes `SUM(SalesAmount)`
+**Characteristics:**
+- Returns first name, last name, and total sales amount
+- Traditional JOIN approach
+- Memory Granted: 5,648 KB
 
-### Query 2
-Optimized query focusing on customer identification without aggregating sales amount.
+---
 
-**Features:**
-- Lowest memory usage (3016 KB)
-- Lowest logical reads
-- Does not return total sales amount
-- **Most resource-efficient option**
+### Query 2: CTE with Subquery (No Sales Amount)
+**Method:** CTE for aggregation, subquery for filtering
+```sql
+WITH x AS (
+    SELECT 
+        CustomerKey
+        ,SUM(SalesAmount) AS TotalSales
+    FROM dbo.FactInternetSales
+    GROUP BY CustomerKey
+) 
+SELECT TOP 1
+    c.FirstName
+    ,c.LastName 
+FROM dbo.DimCustomer AS c
+WHERE CustomerKey IN (
+    SELECT TOP 1 
+        CustomerKey 
+    FROM x 
+    ORDER BY TotalSales DESC
+);
+```
 
-### Query 3
-Alternative aggregation approach with different sorting strategy.
+**Characteristics:**
+- Returns ONLY first name and last name (no sales amount)
+- Most memory-efficient approach
+- Memory Granted: 3,016 KB (47% less than Query 1 & 3)
 
-**Features:**
-- Returns complete business information
-- Similar performance to Query 1
-- Memory consumption: 5648 KB
+---
+
+### Query 3: CTE with JOIN (Full Information)
+**Method:** CTE for aggregation, JOIN to retrieve customer details
+```sql
+WITH x AS (
+    SELECT 
+        CustomerKey
+        ,SUM(SalesAmount) AS TotalSales
+    FROM dbo.FactInternetSales
+    GROUP BY CustomerKey
+) 
+SELECT TOP 1
+    c.FirstName 
+    ,c.LastName
+    ,x.TotalSales
+FROM dbo.DimCustomer AS c
+JOIN x ON c.CustomerKey = x.CustomerKey
+ORDER BY x.TotalSales DESC;
+```
+
+**Characteristics:**
+- Returns first name, last name, and total sales amount
+- CTE-based approach with JOIN
+- Memory Granted: 5,648 KB
 
 ---
 
 ## Testing Methodology
 
-### Phase 1: Initial Testing
-- Executed queries against original `FactInternetSales` table
-- Analyzed execution plans and memory grants
-- Measured initial performance metrics
+### Phase 1: Initial Performance Testing
+**Target:** Original `FactInternetSales` table
+
+**Process:**
+1. Clear cache and execution plans before each query
+```sql
+   DBCC DROPCLEANBUFFERS;
+   DBCC FREEPROCCACHE;
+```
+2. Enable statistics tracking
+```sql
+   SET STATISTICS IO ON;
+   SET STATISTICS TIME ON;
+```
+3. Execute each query once
+4. Capture execution plans (.sqlplan files)
+5. Record metrics using [statisticsparser.com](https://statisticsparser.com/)
+
+**Key Finding:**
+- All three queries had similar execution times
+- Query 2 showed significantly lower memory consumption (3,016 KB vs 5,648 KB)
+
+---
 
 ### Phase 2: Large-Scale Testing
-- Created `RawFactInternetSalesBig` (100x original data size)
-- Executed each query 100 times
-- Excluded top 5 and bottom 5 outliers
-- Calculated average CPU time and execution time
 
-### Phase 3: Index Optimization
-Tested three indexing strategies:
-
-1. **No Index** (baseline)
-2. **Nonclustered Index**
+**Setup:**
+Created test table `RawFactInternetSalesBig` containing 100x the original data:
 ```sql
-   CREATE NONCLUSTERED INDEX IX_CustomerKey_SalesAmount
-   ON FactInternetSales (CustomerKey)
-   INCLUDE (SalesAmount);
+SELECT f.*
+INTO AdventureWorksDW2019.dbo.RawFactInternetSalesBig
+FROM AdventureWorksDW2019.dbo.FactInternetSales AS f
+CROSS JOIN (
+    SELECT TOP (100) 1 AS n
+    FROM AdventureWorksDW2019.dbo.FactInternetSales
+) AS x;
+
+-- Create clustered index
+CREATE CLUSTERED INDEX idx_RawFactInternetSalesBig_SalesOrderNumber
+ON AdventureWorksDW2019.dbo.RawFactInternetSalesBig (SalesOrderNumber);
 ```
 
-3. **Columnstore Index**
+**Testing Process:**
+1. Each query executed 100 times against the large table
+2. CPU time and elapsed time measured for each run
+3. Statistical analysis:
+   - Excluded top 5 and bottom 5 runs (outliers)
+   - Calculated averages from middle 90 runs
+   - Captured min/max values
+
+**Key Finding:**
+- All three queries performed very similarly on repeated execution
+- SQL Server optimizer generates comparable execution plans
+- Syntax differences had minimal impact on execution time
+
+---
+
+### Phase 3: Index Optimization Testing
+
+#### Test 3A: Nonclustered Index
+
+**Index Creation:**
 ```sql
-   CREATE NONCLUSTERED COLUMNSTORE INDEX IX_Columnstore
-   ON FactInternetSales (CustomerKey, SalesAmount);
+-- On FactInternetSales
+CREATE NONCLUSTERED INDEX idx_FactInternetSales_CustomerKey_SalesAmount
+ON dbo.FactInternetSales (CustomerKey)
+INCLUDE (SalesAmount);
+
+-- On RawFactInternetSalesBig
+CREATE NONCLUSTERED INDEX idx_RawFactInternetSalesBig_CustomerKey_SalesAmount
+ON dbo.RawFactInternetSalesBig (CustomerKey)
+INCLUDE (SalesAmount);
 ```
+
+**Results:**
+- Dramatically reduced logical reads
+  - Query 2: 1,252 → 288 logical reads (77% reduction)
+- Slightly increased CPU time
+- Demonstrates that fewer logical reads ≠ lower CPU usage
+
+---
+
+#### Test 3B: Nonclustered Columnstore Index
+
+**Index Creation:**
+```sql
+-- On FactInternetSales
+CREATE NONCLUSTERED COLUMNSTORE INDEX nccidx_FactInternetSales_CustomerKey_SalesAmount
+ON dbo.FactInternetSales (CustomerKey, SalesAmount);
+
+-- On RawFactInternetSalesBig
+CREATE NONCLUSTERED COLUMNSTORE INDEX nccidx_RawFactInternetSalesBig_CustomerKey_SalesAmount
+ON dbo.RawFactInternetSalesBig (CustomerKey, SalesAmount);
+```
+
+**Results:**
+- Best performance for large-scale aggregations
+- Logical reads reduced to nearly zero
+- Significant reduction in average execution time over 100 runs
+- **Trade-off:** Reduced write performance (not suitable for OLTP systems)
 
 ---
 
 ## Key Findings
 
-### Performance Comparison
+### Performance Comparison Summary
 
-| Metric | Query 1 | Query 2 | Query 3 |
-|--------|---------|---------|---------|
-| Memory Granted | 5648 KB | 3016 KB | 5648 KB |
-| Logical Reads (No Index) | ~1250 | ~1250 | ~1250 |
-| Logical Reads (With Index) | 288 | 288 | 288 |
-| Returns Sales Amount | Yes | No | Yes |
-| Execution Time | Similar | Similar | Similar |
+| Metric | Query 1 (JOIN) | Query 2 (CTE + Subquery) | Query 3 (CTE + JOIN) |
+|--------|----------------|--------------------------|----------------------|
+| **Approach** | Direct JOIN | CTE with Subquery | CTE with JOIN |
+| **Returns Sales Amount** |  Yes |  No |  Yes |
+| **Memory Granted** | 5,648 KB | **3,016 KB** | 5,648 KB |
+| **Logical Reads (No Index)** | ~1,250 | ~1,250 | ~1,250 |
+| **Logical Reads (With Index)** | 288 | **288** | 288 |
+| **Execution Time** | Similar | **Similar** | Similar |
+| **Memory Efficiency** | Standard | **Best** | Standard |
 
-### Index Impact
-
-**Nonclustered Index:**
-- Reduced logical reads significantly (1252 → 288 for Query 2)
-- Slightly increased CPU time
-- Demonstrates that fewer logical reads ≠ lower CPU usage
-
-**Columnstore Index:**
-- Best performance for large-scale aggregations
-- Logical reads reduced to nearly zero
-- Dramatic improvement in execution time over 100 runs
-- **Trade-off:** Reduced write performance
-- **Recommended for:** Read-heavy analytical workloads
+---
 
 ### Execution Plan Analysis
 
-- All three queries generate similar execution plans when using the same indexes
-- SQL Server optimizer produces comparable execution strategies
-- Syntax differences have minimal impact on execution time
+**Similarities:**
+- All three queries use comparable operators when the same indexes are available
+- SQL Server optimizer generates similar execution strategies
 - Parallelism utilized automatically for large table scans
-- Memory allocation is the primary differentiator
+- Syntax differences have minimal impact
+
+**Key Difference:**
+- **Memory allocation** is the primary differentiator
+- Query 2 requires ~50% less memory due to simpler result set (no aggregated sales amount)
+
+---
+
+### Index Impact Analysis
+
+#### Nonclustered Index Impact
+
+| Query | Logical Reads (Before) | Logical Reads (After) | Reduction |
+|-------|------------------------|----------------------|-----------|
+| Query 1 | 1,252 | 288 | 77% |
+| Query 2 | 1,252 | 288 | 77% |
+| Query 3 | 1,252 | 288 | 77% |
+
+**Observation:** Despite dramatic reduction in logical reads, CPU time slightly increased, demonstrating that I/O optimization doesn't always correlate with CPU efficiency.
+
+#### Columnstore Index Impact
+
+- **Logical reads:** Reduced to nearly 0
+- **Execution time:** Dramatically improved for repeated queries
+- **Best use case:** Read-intensive analytical workloads (OLAP)
+- **Not recommended for:** Transaction-heavy systems (OLTP)
 
 ---
 
 ## Conclusions
 
-### Winner: Query 2
+### Winner: Query 2 (Resource Efficiency)
 
 **Reasons:**
-- **50% less memory consumption** (3016 KB vs 5648 KB)
-- **Lowest logical reads** across all scenarios
+- **50% less memory consumption** (3,016 KB vs 5,648 KB)
+- **Lowest logical reads** in all scenarios
 - **Equivalent execution time** to other queries
 - Most resource-efficient solution
 
@@ -160,100 +319,156 @@ Tested three indexing strategies:
 - Does not return total sales amount
 - Suitable when only customer identification is needed
 
+---
+
 ### When to Use Each Query
 
-**Query 1 / Query 3:**
+#### Use Query 1 (JOIN-Based)
 - When total sales amount is required
-- When complete business intelligence is needed
-- Acceptable memory overhead
+- Traditional SQL approach preferred
+- Standard reporting scenarios
 
-**Query 2:**
-- High-traffic environments
-- Limited memory resources
-- Customer identification only
+#### Use Query 2 (CTE + Subquery)
+- **Resource-constrained environments**
+- High-traffic systems with limited memory
+- When only customer identification needed
 - Maximum resource efficiency required
 
-### Index Recommendation
+#### Use Query 3 (CTE + JOIN)
+- When total sales amount is required
+- Preference for CTE-based code structure
+- Similar performance to Query 1
 
-**For OLTP (Transaction Processing):**
-- Use nonclustered index on CustomerKey with SalesAmount included
+---
+
+### Index Recommendations
+
+#### For OLTP (Transaction Processing)
+**Recommended:** Nonclustered Index
+```sql
+CREATE NONCLUSTERED INDEX idx_FactInternetSales_CustomerKey_SalesAmount
+ON dbo.FactInternetSales (CustomerKey)
+INCLUDE (SalesAmount);
+```
 - Balances read and write performance
+- Significant reduction in logical reads
+- Maintains acceptable write speeds
 
-**For OLAP (Analytical Processing):**
-- Use columnstore index
+#### For OLAP (Analytical Processing)
+**Recommended:** Nonclustered Columnstore Index
+```sql
+CREATE NONCLUSTERED COLUMNSTORE INDEX nccidx_FactInternetSales_CustomerKey_SalesAmount
+ON dbo.FactInternetSales (CustomerKey, SalesAmount);
+```
 - Optimal for aggregation queries
 - Best for read-heavy data warehouse scenarios
+- Dramatic performance improvements
+- **Caution:** Reduced write performance
+
+---
+
+## Performance Metrics Collected
+
+Throughout all tests, the following metrics were captured:
+
+- **Execution Time** – Total elapsed time (milliseconds)
+- **CPU Time** – Processor time consumed (milliseconds)
+- **Logical Reads** – Pages read from buffer cache
+- **Physical Reads** – Pages read from disk
+- **Read-Ahead Reads** – Pages read asynchronously
+- **Memory Granted** – Memory allocated for query execution (KB)
+- **Scan Count** – Number of index/table scans performed
+
+All metrics were analyzed using [statisticsparser.com](https://statisticsparser.com/) and recorded in the Excel file.
 
 ---
 
 ## Files Included
 
 ### SQL Files
-- `SQL_2_Assignment_2_CL.sql` - All three query implementations plus test setup
+- **SQL_2_Assignment_2_CL.sql** – Complete implementation with:
+  - All three query variations
+  - Test harness for 100-run testing
+  - Index creation scripts
+  - Statistical analysis queries
 
-### Execution Plans (15 files)
-- Original table plans (3 files)
-- Big table plans (3 files)
-- With nonclustered index (6 files)
-- With columnstore index (3 files)
+### Execution Plans (15 files total)
+- **Original table plans** (3 files) – Initial tests on FactInternetSales
+- **Big table plans** (3 files) – Tests on RawFactInternetSalesBig (100x data)
+- **With nonclustered index** (6 files) – Both original and big table
+- **With columnstore index** (3 files) – Optimal indexing strategy
 
 ### Data Files
-- `SQL_2_Assignment_2_CL.xlsx` - Performance metrics and measurements
+- **SQL_2_Assignment_2_CL.xlsx** – Complete performance metrics:
+  - Raw measurement data
+  - Statistical analysis
+  - Comparison charts
+  - I/O metrics visualization
 
 ### Documentation
-- `SQL_2_Assignment_2_PDF.pdf` - Complete Swedish-language analysis report
+- **SQL_2_Assignment_2_PDF.pdf** – Full Swedish-language analysis report with:
+  - Detailed methodology
+  - Visual performance comparisons
+  - Comprehensive conclusions
 
 ---
 
-## How to Use
+## How to Use This Project
 
 ### Prerequisites
 - SQL Server 2016 or later
 - AdventureWorksDW2019 database
-- SQL Server Management Studio (for viewing .sqlplan files)
+- SQL Server Management Studio (SSMS) for viewing .sqlplan files
+- Excel for viewing performance metrics
 
 ### Running the Analysis
 
-1. **Restore AdventureWorksDW2019 database**
-
-2. **Execute the SQL file:**
+#### Step 1: Prepare Database
 ```sql
-   USE AdventureWorksDW2019;
-   GO
-   
-   -- Run queries from SQL_2_Assignment_2_CL.sql
+USE AdventureWorksDW2019;
+GO
 ```
 
-3. **View execution plans:**
-   - Open .sqlplan files in SSMS
-   - Analyze execution costs and operators
+#### Step 2: Enable Statistics
+```sql
+SET STATISTICS IO ON;
+SET STATISTICS TIME ON;
+```
 
-4. **Review metrics:**
-   - Open Excel file for detailed statistics
-   - Compare memory, CPU, and I/O metrics
+#### Step 3: Run Individual Queries
+Execute queries from **Section 2** of the SQL file to test each approach once.
 
-5. **Explore interactive demo:**
-   - Visit: https://sql2assignment2.lovable.app
+#### Step 4: Create Large Test Table
+Execute **Section 3** to create `RawFactInternetSalesBig` (100x original data).
 
----
+#### Step 5: Run 100-Iteration Tests
+Execute **Section 4** to run each query 100 times and collect statistical data.
 
-## Performance Metrics Collected
+#### Step 6: Test Index Strategies
+Execute **Section 5** to create and test nonclustered and columnstore indexes.
 
-- **Execution Time** (elapsed time in milliseconds)
-- **CPU Time** (processor time in milliseconds)
-- **Logical Reads** (pages read from buffer cache)
-- **Physical Reads** (pages read from disk)
-- **Memory Granted** (KB allocated for query execution)
-- **Scan Count** (number of seeks/scans performed)
+#### Step 7: Analyze Results
+- Open .sqlplan files in SSMS
+- Review Excel file for metrics
+- Compare execution plans side-by-side
+
+### Viewing Execution Plans
+1. Open SQL Server Management Studio
+2. File → Open → File
+3. Select any .sqlplan file
+4. Analyze operators, costs, and execution flow
 
 ---
 
 ## Technologies Used
 
-- **Database:** SQL Server / AdventureWorksDW2019
-- **Tools:** SQL Server Management Studio
-- **Analysis:** Excel for metrics visualization
-- **Demo Platform:** Lovable (https://sql2assignment2.lovable.app)
+- **Database System:** Microsoft SQL Server
+- **Sample Database:** AdventureWorksDW2019
+- **Analysis Tools:** 
+  - SQL Server Management Studio (SSMS)
+  - [Statistics Parser](https://statisticsparser.com/)
+  - Microsoft Excel
+- **Demo Platform:** [Lovable](https://sql2assignment2.lovable.app)
 
 ---
 
@@ -261,39 +476,88 @@ Tested three indexing strategies:
 
 This assignment demonstrates:
 
-- Performance analysis of equivalent queries
-- Impact of indexing strategies on query performance
-- Trade-offs between memory, I/O, and CPU usage
-- Importance of execution plan analysis
-- Practical application of columnstore indexes
-- Scientific methodology for performance testing
-- SQL Server query optimization techniques
+1. **Query Optimization Techniques**
+   - Different approaches to achieve the same result
+   - Impact of query structure on resource consumption
+
+2. **Performance Analysis Methodology**
+   - Scientific approach to benchmarking
+   - Statistical outlier removal
+   - Reliable average calculations
+
+3. **Index Strategy Selection**
+   - Nonclustered indexes for balanced workloads
+   - Columnstore indexes for analytical queries
+   - Trade-offs between read and write performance
+
+4. **SQL Server Internals**
+   - Memory grant allocation
+   - Execution plan generation
+   - Parallel query execution
+   - Buffer cache behavior
+
+5. **Real-World Decision Making**
+   - Balancing performance vs business requirements
+   - Resource constraint considerations
+   - Workload-appropriate optimization
 
 ---
 
-## Future Improvements
+## Key Takeaways
+
+### The Most Efficient Query Depends on Context
+
+**For Resource Efficiency:**
+- Choose **Query 2** (CTE + Subquery without sales amount)
+- 50% less memory, lowest I/O, same speed
+
+**For Complete Business Intelligence:**
+- Choose **Query 1** (JOIN) or **Query 3** (CTE + JOIN)
+- Provides total sales amount at the cost of higher memory usage
+
+**For Analytical Workloads:**
+- Implement **columnstore indexes**
+- Best for read-heavy data warehouse scenarios
+
+**For Transactional Systems:**
+- Implement **nonclustered indexes**
+- Balances read optimization with write performance
+
+### Performance Optimization is Multi-Dimensional
+
+This project proves that:
+- Fewer logical reads ≠ lower CPU usage
+- Similar execution times can mask different resource consumption
+- Memory efficiency is often overlooked but critical
+- The "best" query depends on system constraints and requirements
+
+---
+
+## Future Enhancements
 
 Potential extensions to this analysis:
 
 - Test with even larger datasets (1000x, 10000x)
-- Analyze impact of different isolation levels
-- Compare performance with clustered columnstore indexes
-- Test query performance under concurrent load
-- Analyze impact of database compatibility levels
-- Implement filtered indexes for specific customer segments
+- Analyze performance under concurrent load
+- Compare different isolation levels
+- Test with filtered indexes for specific customer segments
+- Implement clustered columnstore indexes
+- Analyze query performance across different SQL Server versions
+- Test impact of statistics updates on query plans
+- Measure performance with different MAXDOP settings
 
 ---
 
-## Author Notes
+## Demo & Visualization
 
-This project showcases a methodical approach to query performance optimization. The key takeaway is that the most efficient query depends on specific requirements:
+**Interactive Dashboard:** [https://sql2assignment2.lovable.app](https://sql2assignment2.lovable.app)
 
-- **Resource-constrained environments:** Choose Query 2
-- **Complete business intelligence:** Choose Query 1 or 3
-- **Analytical workloads:** Implement columnstore indexes
-- **Transactional systems:** Use nonclustered indexes
-
-Real-world optimization requires balancing multiple factors: execution speed, resource consumption, and business requirements.
+The demo provides:
+- Visual comparison of all three queries
+- Performance metrics visualization
+- Execution plan summaries
+- Index impact analysis
+- Interactive charts and graphs
 
 ---
 
@@ -303,22 +567,28 @@ Educational project for DE25 course.
 
 ---
 
-## Contact
+## Author
 
 **Christofer Lindholm**  
 DE25 Course  
-[GitHub Repository](https://github.com/yourusername/SQL_2_Assignment_2)
-```
+Date: 2025-11-16
 
 ---
 
-## Additional Tips for GitHub
+## Contact & Repository
 
-1. **Create a .gitignore file:**
-```
-*.tmp
-*.bak
-~$*.xlsx
-.DS_Store
-Thumbs.db# SQL_Assignment_4
-SQL Assignment – Query Performance Analysis
+**GitHub Repository:** [Your Repository URL Here]
+
+For questions about this analysis or methodology, please refer to the full Swedish report in the `docs/` folder or explore the interactive demo at the link above.
+
+---
+
+## Acknowledgments
+
+- **AdventureWorksDW2019** database by Microsoft
+- **Statistics Parser** tool for metrics analysis
+- **Lovable** platform for interactive demo hosting
+
+---
+
+*This project demonstrates that SQL query optimization requires understanding not just execution speed, but the complete resource consumption profile including memory, I/O, and CPU usage. The most efficient solution balances all these factors against real-world business requirements.*
