@@ -15,7 +15,7 @@ This project analyzes and compares the performance of three different SQL query 
 - `DimCustomer`
 - `FactInternetSales`
 
-**Live Demo:** [View Interactive Dashboard](https://sql2assignment2.lovable.app)
+**Live Demo:** [View Interactive Dashboard](https://sql4.t4ngo.com)
 
 ---
 
@@ -468,7 +468,7 @@ Execute **Section 5** to create and test nonclustered and columnstore indexes.
   - SQL Server Management Studio (SSMS)
   - [Statistics Parser](https://statisticsparser.com/)
   - Microsoft Excel
-- **Demo Platform:** [Lovable](https://sql2assignment2.lovable.app)
+- **Demo Platform:** [Lovable](https://sql4.t4ngo.com)
 
 ---
 
@@ -550,7 +550,7 @@ Potential extensions to this analysis:
 
 ## Demo & Visualization
 
-**Interactive Dashboard:** [https://sql2assignment2.lovable.app](https://sql2assignment2.lovable.app)
+**Interactive Dashboard:** [https://sql4.t4ngo.com](https://sql4.t4ngo.com)
 
 The demo provides:
 - Visual comparison of all three queries
