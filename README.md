@@ -1,5 +1,9 @@
 # SQL Query Performance Analysis
 
+> This project has moved to
+> [`sql-assignments/assignment-04-query-performance`](https://github.com/GHT4ngo/sql-assignments/tree/main/assignment-04-query-performance).
+> This repository is retained as a read-only archive.
+
 An educational SQL Server assignment comparing three ways to find the
 highest-spending customer in `AdventureWorksDW2019`.
 
