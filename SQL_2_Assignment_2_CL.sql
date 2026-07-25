@@ -1,31 +1,31 @@
 -- SQL_2_Assignment_2_Christofer_Lindholm
 
 /*==============================================================
-    
+
 INDEX
 
-1.  Förberedelser: Start av statistikmätning
+1.  FÃ¶rberedelser: Start av statistikmÃ¤tning
 
-2.  Utförande: 3 test Queries 
+2.  UtfÃ¶rande: 3 test Queries
 
-    2.1 Query baserad på JOIN
-    2.2 Query baserad på en SubQuery (utan spenderat belopp)
-    2.3 Query baserad på en SubQuery och JOIN (med Spenderat belopp)
+    2.1 Query baserad pÃ¥ JOIN
+    2.2 Query baserad pÃ¥ en SubQuery (utan spenderat belopp)
+    2.3 Query baserad pÃ¥ en SubQuery och JOIN (med Spenderat belopp)
 
 3.  Skapa RawFactInternetSalesBig
 
     3.1 Skapa tabell
     3.2 Skapa Index
 
-4.  Köra testqueries 100 gånger för tidsmätning
+4.  KÃ¶ra testqueries 100 gÃ¥nger fÃ¶r tidsmÃ¤tning
 
-    4.1 Köra 2.1 hundra gånger
-    4.2 Köra 2.2 hundra gånger
-    4.3 Köra 2.3 hundra gånger
+    4.1 KÃ¶ra 2.1 hundra gÃ¥nger
+    4.2 KÃ¶ra 2.2 hundra gÃ¥nger
+    4.3 KÃ¶ra 2.3 hundra gÃ¥nger
 
 5.  Indexering och Optimering
 
-    5.1 Skapa och prova nonclustered index  
+    5.1 Skapa och prova nonclustered index
     5.2 Skapa och prova columnstore index
 
 
@@ -33,29 +33,31 @@ INDEX
 
 
 ----------------------------------------------------------------
--- 1.  Förberedelser: Start av statistikmätning
+-- 1.  FÃ¶rberedelser: Start av statistikmÃ¤tning
 ----------------------------------------------------------------
-
--- Startar statisikmätning
-SET STATISTICS IO ON ;          -- CPU Tid
-SET STATISTICS TIME ON ;        -- Query Tid
 
 -- Val av databas
 USE AdventureWorksDW2019 ;
 GO
 
+-- Visar sidlÃ¤sningar samt CPU- och exekveringstid i Messages.
+SET STATISTICS IO ON ;
+SET STATISTICS TIME ON ;
+
 
 ----------------------------------------------------------------
--- 2.  Utförande: 3 test Queries 
+-- 2.  UtfÃ¶rande: 3 test Queries
 ----------------------------------------------------------------
 
 -- 2.1 Query 1 with JOIN
 
--- Tömmer cachen och execution plans så att de inte påverkar mätningen
+-- TÃ¶mmer cachen och execution plans sÃ¥ att de inte pÃ¥verkar mÃ¤tningen
+-- OBS: FÃ¶ljande kommandon pÃ¥verkar hela SQL Server-instansen.
+-- KÃ¶r dem endast i en egen testmiljÃ¶, aldrig pÃ¥ en delad produktionsserver.
 DBCC DROPCLEANBUFFERS ;
 DBCC FREEPROCCACHE ;
 
--- Visar för- och efternamn samt spenderat belopp på den kund som spenderat mest
+-- Visar fÃ¶r- och efternamn samt spenderat belopp pÃ¥ den kund som spenderat mest
 SELECT TOP 1
     c.FirstName
     ,c.LastName
@@ -69,71 +71,72 @@ GROUP BY
     ,c.LastName
 ORDER BY
     TotalSales DESC
+    ,c.CustomerKey
 
--- Mätvärden:
+-- MÃ¤tvÃ¤rden:
 
-    -- Använde https://statisticsparser.com/ och skrev in resultatet i SQL_2_Assignment_2_CL.xlsx
-    
+    -- AnvÃ¤nde https://statisticsparser.com/ och skrev in resultatet i SQL_2_Assignment_2_CL.xlsx
+
     -- MemoryGrant = "5648" (kB)
 
 
 -- 2.2 Query 2 med en CTE och SubQuery
 
--- Tömmer cachen och execution plans så att de inte påverkar mätningen
+-- TÃ¶mmer cachen och execution plans sÃ¥ att de inte pÃ¥verkar mÃ¤tningen
 DBCC DROPCLEANBUFFERS ;
 DBCC FREEPROCCACHE ;
 
--- Visar för- och efternamn på den som spenderat mest
+-- Visar fÃ¶r- och efternamn pÃ¥ den som spenderat mest
 WITH x AS(
-SELECT 
+SELECT
 	CustomerKey
 	,SUM(SalesAmount)   AS TotalSales
 FROM dbo.FactInternetSales
 GROUP BY CustomerKey
-) 
+)
 
 SELECT TOP 1
 	c.FirstName
-    ,c.LastName 
+    ,c.LastName
 FROM dbo.DimCustomer    AS c
-WHERE CustomerKey IN (SELECT TOP 1 
-                        CustomerKey 
-                        FROM x 
-                        ORDER BY TotalSales DESC
+WHERE CustomerKey IN (SELECT TOP 1
+                        CustomerKey
+                        FROM x
+                        ORDER BY TotalSales DESC, CustomerKey
                       );
 
--- Mätvärden:
-    
-    -- Använde https://statisticsparser.com/ och skrev in resultatet i SQL_2_Assignment_2_CL.xlsx
-    
+-- MÃ¤tvÃ¤rden:
+
+    -- AnvÃ¤nde https://statisticsparser.com/ och skrev in resultatet i SQL_2_Assignment_2_CL.xlsx
+
     -- GrantedMemory = "3016" (kB)
 
 
--- 2.3 Query 3 med en CTE och SubQuery samt JOIN för att visa totalt spenderat belopp
+-- 2.3 Query 3 med en CTE och SubQuery samt JOIN fÃ¶r att visa totalt spenderat belopp
 
--- Tömmer cachen och execution plans så att de inte påverkar mätningen
+-- TÃ¶mmer cachen och execution plans sÃ¥ att de inte pÃ¥verkar mÃ¤tningen
 DBCC DROPCLEANBUFFERS ;
 DBCC FREEPROCCACHE ;
 
--- Visar för- och efternamn samt spenderat belopp på den kund som spenderat mest
+-- Visar fÃ¶r- och efternamn samt spenderat belopp pÃ¥ den kund som spenderat mest
 WITH x AS (
-    SELECT 
+    SELECT
         CustomerKey
         ,SUM(SalesAmount)           AS TotalSales
     FROM dbo.FactInternetSales
     GROUP BY CustomerKey
-) 
+)
 SELECT TOP 1
-    c.FirstName 
+    c.FirstName
     ,c.LastName
     ,x.TotalSales
 FROM dbo.DimCustomer                AS c
 JOIN x ON c.CustomerKey = x.CustomerKey
-ORDER BY x.TotalSales DESC;
+ORDER BY x.TotalSales DESC, c.CustomerKey;
 
--- Märtvärden:
+-- MÃ¤rtvÃ¤rden:
 
-    -- Använde https://statisticsparser.com/ och skrev in resultatet i SQL_2_Assignment_2_CL.xlsx
+    -- AnvÃ¤nde https://statisticsparser.com/ och skrev in resultatet i SQL_2_Assignment_2_CL.xlsx
 
     -- GrantedMemory = "5648" (kB)
 
@@ -144,44 +147,57 @@ ORDER BY x.TotalSales DESC;
 
 -- 3.1 Skapa tabell
 
--- Skapa en tabell som innhåller data från FactInternetSales gånger hundra
+-- Skapa tabellen endast om den inte redan finns. Tabellen innehÃ¥ller
+-- FactInternetSales duplicerad hundra gÃ¥nger och krÃ¤ver mycket diskutrymme.
+IF OBJECT_ID('dbo.RawFactInternetSalesBig', 'U') IS NULL
+BEGIN
+    SELECT f.*
+    INTO dbo.RawFactInternetSalesBig
+    FROM dbo.FactInternetSales AS f
+    CROSS JOIN (
+        SELECT TOP (100) 1 AS n
+        FROM dbo.FactInternetSales
+    ) AS x;
 
-SELECT f.*
-INTO AdventureWorksDW2019.dbo.RawFactInternetSalesBig
-FROM AdventureWorksDW2019.dbo.FactInternetSales AS f
-CROSS JOIN (
-    SELECT TOP (100) 1 AS n
-    FROM AdventureWorksDW2019.dbo.FactInternetSales
-) AS x;
-
--- 3.2 Skapa Index
-
--- Eftersom vi inte kan använda Primärnyckeln från FactInternetSales så 
--- skapar vi en clustered index istället som substitut
-
-CREATE CLUSTERED INDEX idx_RawFactInternetSalesBig_SalesOrderNumber
-ON AdventureWorksDW2019.dbo.RawFactInternetSalesBig (SalesOrderNumber);
+    -- Tabellen saknar originaltabellens primÃ¤rnyckel, sÃ¥ ett clustered index
+    -- skapas fÃ¶r att ge den en liknande fysisk struktur.
+    CREATE CLUSTERED INDEX idx_RawFactInternetSalesBig_SalesOrderNumber
+    ON dbo.RawFactInternetSalesBig (SalesOrderNumber);
+END
+ELSE
+BEGIN
+    PRINT 'RawFactInternetSalesBig finns redan och skapades inte pÃ¥ nytt.';
+END;
 
 
 ----------------------------------------------------------------
--- 4.  Köra testqueries 100 gånger för tidsmätning
+-- 4.  KÃ¶ra testqueries 100 gÃ¥nger fÃ¶r tidsmÃ¤tning
 ----------------------------------------------------------------
 
--- Stänger av alla STATISTICS så att de inte påverkar mätningen
-SET STATISTICS IO   OFF ;       -- CPU Tid
-SET STATISTICS TIME OFF ;       -- Query Tid
+-- StÃ¤nger av meddelanden frÃ¥n STATISTICS under de upprepade mÃ¤tningarna.
+SET STATISTICS IO OFF ;
+SET STATISTICS TIME OFF ;
+
+/*
+    CPU-tiden nedan lÃ¤ses frÃ¥n den aktuella SQL-sessionen via
+    sys.dm_exec_sessions. Den Ã¤ldre variabeln @@CPU_BUSY mÃ¤ter hela servern
+    och kan dÃ¤rfÃ¶r pÃ¥verkas av andra anvÃ¤ndare.
+
+    DBCC-kommandona i avsnittet pÃ¥verkar hela instansen. KÃ¶r avsnitt 4 endast
+    i en egen testmiljÃ¶.
+*/
 
 
--- 4.1 Köra 2.1 hundra gånger
+-- 4.1 KÃ¶ra 2.1 hundra gÃ¥nger
 
--- Tömmer cachen och execution plans så att de inte påverkar mätningen
+-- TÃ¶mmer cachen och execution plans sÃ¥ att de inte pÃ¥verkar mÃ¤tningen
 DBCC DROPCLEANBUFFERS ;
 DBCC FREEPROCCACHE ;
 
--- Stänger av medelanden
+-- StÃ¤nger av medelanden
 SET NOCOUNT ON;
 
--- Skapa en temptabell att för resultatet
+-- Skapa en temptabell att fÃ¶r resultatet
 CREATE TABLE #ExecutionTimes (
     RunNumber       INT
     ,CPUTime        INT
@@ -195,15 +211,17 @@ DECLARE @CPUStart       INT;
 DECLARE @CPUEnd         INT;
 DECLARE @ElapsedTime    INT;
 
--- Kör en testquery ett hundra gånger
+-- KÃ¶r en testquery ett hundra gÃ¥nger
 WHILE @Cnt <= 100
 BEGIN
 
-    -- Spara starttid för cpu- och totaltidsmärning
-    SET @CPUStart       = @@CPU_BUSY;
+    -- Spara starttid fÃ¶r cpu- och totaltidsmÃ¤rning
+    SELECT @CPUStart = cpu_time
+    FROM sys.dm_exec_sessions
+    WHERE session_id = @@SPID;
     SET @StartTime      = SYSDATETIME();
-    
-    -- Query 1 mot RawFactInternetSalesBig istället för FactInternetSales
+
+    -- Query 1 mot RawFactInternetSalesBig istÃ¤llet fÃ¶r FactInternetSales
     SELECT TOP 1
         c.FirstName
         ,c.LastName
@@ -218,48 +236,48 @@ BEGIN
     ORDER BY
         TotalSales DESC
 
-    -- Lade till Recompile för att skapa en ny execution plan varje gång 
-    -- samt ökade tilldelningen av minne för att motverka memoryspill på grund av storleken på tabellen
-    OPTION(RECOMPILE) ; 
-    
-    -- Stoppa tidsmätningen och spara värden
-    SET @CPUEnd         = @@CPU_BUSY;
+    -- RECOMPILE skapar en ny execution plan fÃ¶r varje kÃ¶rning.
+    OPTION(RECOMPILE) ;
+
+    -- Stoppa tidsmÃ¤tningen och spara vÃ¤rden
+    SELECT @CPUEnd = cpu_time
+    FROM sys.dm_exec_sessions
+    WHERE session_id = @@SPID;
     SET @ElapsedTime    = DATEDIFF(MILLISECOND, @StartTime, SYSDATETIME());
-    
-    -- Sätt in värden från tidsmätningen i temptabellen
-    -- Använder @@TIMETICKS för att omvandla CPU mätningen till millisekunder
+
+    -- SÃ¤tt in vÃ¤rden frÃ¥n tidsmÃ¤tningen i temptabellen
     INSERT INTO #ExecutionTimes (RunNumber, CPUTime, ElapsedTime)
-    VALUES (@Cnt, (@CPUEnd - @CPUStart) * @@TIMETICKS / 1000, @ElapsedTime);
-    
-    -- Uppdaterar räknaren av antal körda gånger
+    VALUES (@Cnt, @CPUEnd - @CPUStart, @ElapsedTime);
+
+    -- Uppdaterar rÃ¤knaren av antal kÃ¶rda gÃ¥nger
     SET @Cnt = @Cnt + 1;
 END
 
--- Visar tabellen med mätvärden
-SELECT 
+-- Visar tabellen med mÃ¤tvÃ¤rden
+SELECT
     RunNumber,
     CPUTime AS CPUTime_ms,
     ElapsedTime AS ElapsedTime_ms
 FROM #ExecutionTimes
 ORDER BY RunNumber;
 
--- Kalkulerar statestik på uppmätta värden, de 5 högsta och lägsta resultaten används 
--- inte så att avvikelser inte förstör mätningen
+-- Kalkulerar statestik pÃ¥ uppmÃ¤tta vÃ¤rden, de 5 hÃ¶gsta och lÃ¤gsta resultaten anvÃ¤nds
+-- inte sÃ¥ att avvikelser inte fÃ¶rstÃ¶r mÃ¤tningen
 WITH RankedResults AS (
-    SELECT 
+    SELECT
         CPUTime
         ,ElapsedTime
         ,ROW_NUMBER() OVER (ORDER BY ElapsedTime) AS RowNum
     FROM #ExecutionTimes
-), 
+),
 FilteredResults AS (
-    SELECT 
+    SELECT
         CPUTime
         ,ElapsedTime
     FROM RankedResults
     WHERE RowNum > 5 AND RowNum <= 95
 )
-SELECT 
+SELECT
     COUNT(*)            AS SampleSize,
     AVG(CPUTime)        AS AvgCPUTime_ms,
     AVG(ElapsedTime)    AS AvgElapsedTime_ms,
@@ -274,16 +292,16 @@ DROP TABLE #ExecutionTimes ;
 GO
 
 
--- 4.2 Köra 2.2 hundra gånger
+-- 4.2 KÃ¶ra 2.2 hundra gÃ¥nger
 
--- Tömmer cachen och execution plans så att de inte påverkar mätningen
+-- TÃ¶mmer cachen och execution plans sÃ¥ att de inte pÃ¥verkar mÃ¤tningen
 DBCC DROPCLEANBUFFERS ;
 DBCC FREEPROCCACHE ;
 
--- Stänger av medelanden
+-- StÃ¤nger av medelanden
 SET NOCOUNT ON;
 
--- Skapa en temptabell att för resultatet
+-- Skapa en temptabell att fÃ¶r resultatet
 CREATE TABLE #ExecutionTimes (
     RunNumber       INT
     ,CPUTime        INT
@@ -297,75 +315,77 @@ DECLARE @CPUStart       INT;
 DECLARE @CPUEnd         INT;
 DECLARE @ElapsedTime    INT;
 
--- Kör en testquery ett hundra gånger
+-- KÃ¶r en testquery ett hundra gÃ¥nger
 WHILE @Cnt <= 100
 BEGIN
 
-    -- Spara starttid för cpu- och totaltidsmärning
-    SET @CPUStart       = @@CPU_BUSY;
+    -- Spara starttid fÃ¶r cpu- och totaltidsmÃ¤rning
+    SELECT @CPUStart = cpu_time
+    FROM sys.dm_exec_sessions
+    WHERE session_id = @@SPID;
     SET @StartTime      = SYSDATETIME();
-    
-    -- Query 2 mot RawFactInternetSalesBig istället för FactInternetSales
+
+    -- Query 2 mot RawFactInternetSalesBig istÃ¤llet fÃ¶r FactInternetSales
     WITH x AS(
-    SELECT 
+    SELECT
     	CustomerKey
     	,SUM(SalesAmount)   AS TotalSales
     FROM dbo.RawFactInternetSalesBig
     GROUP BY CustomerKey
-    ) 
-    
+    )
+
     SELECT
     	c.FirstName
-        ,c.LastName 
+        ,c.LastName
     FROM dbo.DimCustomer    AS c
-    WHERE CustomerKey IN (SELECT TOP 1 
-                            CustomerKey 
-                            FROM x 
-                            ORDER BY TotalSales DESC
+    WHERE CustomerKey IN (SELECT TOP 1
+                            CustomerKey
+                            FROM x
+                            ORDER BY TotalSales DESC, CustomerKey
                           )
 
-    -- Lade till Recompile för att skapa en ny execution plan varje gång 
-    -- samt ökade tilldelningen av minne för att motverka memoryspill på grund av storleken på tabellen
-    OPTION(RECOMPILE); 
-    
-    -- Stoppa tidsmätningen och spara värden
-    SET @CPUEnd         = @@CPU_BUSY;
+    -- RECOMPILE skapar en ny execution plan fÃ¶r varje kÃ¶rning.
+    OPTION(RECOMPILE);
+
+    -- Stoppa tidsmÃ¤tningen och spara vÃ¤rden
+    SELECT @CPUEnd = cpu_time
+    FROM sys.dm_exec_sessions
+    WHERE session_id = @@SPID;
     SET @ElapsedTime    = DATEDIFF(MILLISECOND, @StartTime, SYSDATETIME());
-    
-    -- Sätt in värden från tidsmätningen i temptabellen
-    -- Använder @@TIMETICKS för att omvandla CPU mätningen till millisekunder
+
+    -- SÃ¤tt in vÃ¤rden frÃ¥n tidsmÃ¤tningen i temptabellen
     INSERT INTO #ExecutionTimes (RunNumber, CPUTime, ElapsedTime)
-    VALUES (@Cnt, (@CPUEnd - @CPUStart) * @@TIMETICKS / 1000, @ElapsedTime);
-    
-    -- Uppdaterar räknaren av antal körda gånger
+    VALUES (@Cnt, @CPUEnd - @CPUStart, @ElapsedTime);
+
+    -- Uppdaterar rÃ¤knaren av antal kÃ¶rda gÃ¥nger
     SET @Cnt = @Cnt + 1;
 END
 
--- Visar tabellen med mätvärden
-SELECT 
+-- Visar tabellen med mÃ¤tvÃ¤rden
+SELECT
     RunNumber,
     CPUTime AS CPUTime_ms,
     ElapsedTime AS ElapsedTime_ms
 FROM #ExecutionTimes
 ORDER BY RunNumber;
 
--- Kalkulerar statestik på uppmätta värden, de 5 högsta och lägsta resultaten används 
--- inte så att avvikelser inte förstör mätningen
+-- Kalkulerar statestik pÃ¥ uppmÃ¤tta vÃ¤rden, de 5 hÃ¶gsta och lÃ¤gsta resultaten anvÃ¤nds
+-- inte sÃ¥ att avvikelser inte fÃ¶rstÃ¶r mÃ¤tningen
 WITH RankedResults AS (
-    SELECT 
+    SELECT
         CPUTime
         ,ElapsedTime
         ,ROW_NUMBER() OVER (ORDER BY ElapsedTime) AS RowNum
     FROM #ExecutionTimes
-), 
+),
 FilteredResults AS (
-    SELECT 
+    SELECT
         CPUTime
         ,ElapsedTime
     FROM RankedResults
     WHERE RowNum > 5 AND RowNum <= 95
 )
-SELECT 
+SELECT
     COUNT(*)            AS SampleSize,
     AVG(CPUTime)        AS AvgCPUTime_ms,
     AVG(ElapsedTime)    AS AvgElapsedTime_ms,
@@ -379,16 +399,16 @@ FROM FilteredResults;
 DROP TABLE #ExecutionTimes ;
 GO
 
--- 4.3 Köra 2.3 hundra gånger
+-- 4.3 KÃ¶ra 2.3 hundra gÃ¥nger
 
--- Tömmer cachen och execution plans så att de inte påverkar mätningen
+-- TÃ¶mmer cachen och execution plans sÃ¥ att de inte pÃ¥verkar mÃ¤tningen
 DBCC DROPCLEANBUFFERS ;
 DBCC FREEPROCCACHE ;
 
--- Stänger av medelanden
+-- StÃ¤nger av medelanden
 SET NOCOUNT ON;
 
--- Skapa en temptabell att för resultatet
+-- Skapa en temptabell att fÃ¶r resultatet
 CREATE TABLE #ExecutionTimes (
     RunNumber       INT
     ,CPUTime        INT
@@ -402,72 +422,74 @@ DECLARE @CPUStart       INT;
 DECLARE @CPUEnd         INT;
 DECLARE @ElapsedTime    INT;
 
--- Kör en testquery ett hundra gånger
+-- KÃ¶r en testquery ett hundra gÃ¥nger
 WHILE @Cnt <= 100
 BEGIN
 
-    -- Spara starttid för cpu- och totaltidsmärning
-    SET @CPUStart       = @@CPU_BUSY;
+    -- Spara starttid fÃ¶r cpu- och totaltidsmÃ¤rning
+    SELECT @CPUStart = cpu_time
+    FROM sys.dm_exec_sessions
+    WHERE session_id = @@SPID;
     SET @StartTime      = SYSDATETIME();
-    
-    -- Query 3 mot RawFactInternetSalesBig istället för FactInternetSales
+
+    -- Query 3 mot RawFactInternetSalesBig istÃ¤llet fÃ¶r FactInternetSales
     WITH x AS (
-        SELECT 
+        SELECT
             CustomerKey
             ,SUM(SalesAmount)           AS TotalSales
         FROM dbo.RawFactInternetSalesBig
         GROUP BY CustomerKey
-    ) 
+    )
     SELECT TOP 1
-        c.FirstName 
+        c.FirstName
         ,c.LastName
         ,x.TotalSales
     FROM dbo.DimCustomer                AS c
     JOIN x ON c.CustomerKey = x.CustomerKey
-    ORDER BY x.TotalSales DESC
+    ORDER BY x.TotalSales DESC, c.CustomerKey
 
-    -- Lade till Recompile för att skapa en ny execution plan varje gång 
-    -- samt ökade tilldelningen av minne för att motverka memoryspill på grund av storleken på tabellen
+    -- RECOMPILE skapar en ny execution plan fÃ¶r varje kÃ¶rning.
     OPTION(RECOMPILE);
-    
-    -- Stoppa tidsmätningen och spara värden
-    SET @CPUEnd         = @@CPU_BUSY;
+
+    -- Stoppa tidsmÃ¤tningen och spara vÃ¤rden
+    SELECT @CPUEnd = cpu_time
+    FROM sys.dm_exec_sessions
+    WHERE session_id = @@SPID;
     SET @ElapsedTime    = DATEDIFF(MILLISECOND, @StartTime, SYSDATETIME());
-    
-    -- Sätt in värden från tidsmätningen i temptabellen
-    -- Använder @@TIMETICKS för att omvandla CPU mätningen till millisekunder
+
+    -- SÃ¤tt in vÃ¤rden frÃ¥n tidsmÃ¤tningen i temptabellen
     INSERT INTO #ExecutionTimes (RunNumber, CPUTime, ElapsedTime)
-    VALUES (@Cnt, (@CPUEnd - @CPUStart) * @@TIMETICKS / 1000, @ElapsedTime);
-    
-    -- Uppdaterar räknaren av antal körda gånger
+    VALUES (@Cnt, @CPUEnd - @CPUStart, @ElapsedTime);
+
+    -- Uppdaterar rÃ¤knaren av antal kÃ¶rda gÃ¥nger
     SET @Cnt = @Cnt + 1;
 END
 
--- Visar tabellen med mätvärden
-SELECT 
+-- Visar tabellen med mÃ¤tvÃ¤rden
+SELECT
     RunNumber,
     CPUTime AS CPUTime_ms,
     ElapsedTime AS ElapsedTime_ms
 FROM #ExecutionTimes
 ORDER BY RunNumber;
 
--- Kalkulerar statestik på uppmätta värden, de 5 högsta och lägsta resultaten används 
--- inte så att avvikelser inte förstör mätningen
+-- Kalkulerar statestik pÃ¥ uppmÃ¤tta vÃ¤rden, de 5 hÃ¶gsta och lÃ¤gsta resultaten anvÃ¤nds
+-- inte sÃ¥ att avvikelser inte fÃ¶rstÃ¶r mÃ¤tningen
 WITH RankedResults AS (
-    SELECT 
+    SELECT
         CPUTime
         ,ElapsedTime
         ,ROW_NUMBER() OVER (ORDER BY ElapsedTime) AS RowNum
     FROM #ExecutionTimes
-), 
+),
 FilteredResults AS (
-    SELECT 
+    SELECT
         CPUTime
         ,ElapsedTime
     FROM RankedResults
     WHERE RowNum > 5 AND RowNum <= 95
 )
-SELECT 
+SELECT
     COUNT(*)            AS SampleSize,
     AVG(CPUTime)        AS AvgCPUTime_ms,
     AVG(ElapsedTime)    AS AvgElapsedTime_ms,
@@ -486,38 +508,81 @@ GO
 -- 5.  Indexering och Optimering
 ----------------------------------------------------------------
 
--- 5.1 Skapa och prova nonclustered index  
+-- VÃ¤lj ett test i taget: NONE, NONCLUSTERED eller COLUMNSTORE.
+DECLARE @IndexTest VARCHAR(20) = 'NONE';
 
--- Skapar ett index på CustomerKey och inkluderar SalesAmount på FactInternetSales
-CREATE NONCLUSTERED INDEX idx_FactInternetSales_CustomerKey_SalesAmount
-ON dbo.FactInternetSales (CustomerKey)
-INCLUDE (SalesAmount) ;
+-- 5.1 Skapa och prova nonclustered index
 
--- Skapar ett index på CustomerKey och inkluderar SalesAmount på RawFactInsternetSalesBig
-CREATE NONCLUSTERED INDEX idx_RawFactInternetSalesBig_CustomerKey_SalesAmount
-ON dbo.RawFactInternetSalesBig (CustomerKey)
-INCLUDE (SalesAmount) ;
+IF @IndexTest = 'NONCLUSTERED'
+BEGIN
+    -- Skapar ett index pÃ¥ CustomerKey och inkluderar SalesAmount.
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID('dbo.FactInternetSales')
+          AND [name] = 'idx_FactInternetSales_CustomerKey_SalesAmount'
+    )
+    BEGIN
+        CREATE NONCLUSTERED INDEX idx_FactInternetSales_CustomerKey_SalesAmount
+        ON dbo.FactInternetSales (CustomerKey)
+        INCLUDE (SalesAmount);
+    END;
 
--- Tar bort skapade index
-DROP INDEX idx_FactInternetSales_CustomerKey_SalesAmount
-ON dbo.FactInternetSales ;
+    -- Skapar motsvarande index pÃ¥ den stora testtabellen.
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID('dbo.RawFactInternetSalesBig')
+          AND [name] = 'idx_RawFactInternetSalesBig_CustomerKey_SalesAmount'
+    )
+    BEGIN
+        CREATE NONCLUSTERED INDEX idx_RawFactInternetSalesBig_CustomerKey_SalesAmount
+        ON dbo.RawFactInternetSalesBig (CustomerKey)
+        INCLUDE (SalesAmount);
+    END;
+END;
 
-DROP INDEX idx_RawFactInternetSalesBig_CustomerKey_SalesAmount 
-ON dbo.RawFactInternetSalesBig ;
+-- KÃ¶r testfrÃ¥gorna och spara mÃ¤tvÃ¤rden innan indexen tas bort.
+-- DROP INDEX idx_FactInternetSales_CustomerKey_SalesAmount
+-- ON dbo.FactInternetSales;
+-- DROP INDEX idx_RawFactInternetSalesBig_CustomerKey_SalesAmount
+-- ON dbo.RawFactInternetSalesBig;
 
 -- 5.2 Skapa och prova nonclustered columnstore index
 
--- FactInternetSales
-CREATE NONCLUSTERED COLUMNSTORE INDEX nccidx_FactInternetSales_CustomerKey_SalesAmount
-ON dbo.FactInternetSales (CustomerKey, SalesAmount) ;
+IF @IndexTest = 'COLUMNSTORE'
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID('dbo.FactInternetSales')
+          AND [name] = 'nccidx_FactInternetSales_CustomerKey_SalesAmount'
+    )
+    BEGIN
+        CREATE NONCLUSTERED COLUMNSTORE INDEX nccidx_FactInternetSales_CustomerKey_SalesAmount
+        ON dbo.FactInternetSales (CustomerKey, SalesAmount);
+    END;
 
--- RawFactInternetSalesBig
-CREATE NONCLUSTERED COLUMNSTORE INDEX nccidx_RawFactInternetSalesBig_CustomerKey_SalesAmount
-ON dbo.RawFactInternetSalesBig (CustomerKey, SalesAmount) ;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID('dbo.RawFactInternetSalesBig')
+          AND [name] = 'nccidx_RawFactInternetSalesBig_CustomerKey_SalesAmount'
+    )
+    BEGIN
+        CREATE NONCLUSTERED COLUMNSTORE INDEX nccidx_RawFactInternetSalesBig_CustomerKey_SalesAmount
+        ON dbo.RawFactInternetSalesBig (CustomerKey, SalesAmount);
+    END;
+END;
 
--- Tar bort skapade index
-DROP INDEX nccidx_FactInternetSales_CustomerKey_SalesAmount
-ON dbo.FactInternetSales
+-- KÃ¶r testfrÃ¥gorna och spara mÃ¤tvÃ¤rden innan indexen tas bort.
+-- DROP INDEX nccidx_FactInternetSales_CustomerKey_SalesAmount
+-- ON dbo.FactInternetSales;
+-- DROP INDEX nccidx_RawFactInternetSalesBig_CustomerKey_SalesAmount
+-- ON dbo.RawFactInternetSalesBig;
 
-DROP INDEX nccidx_RawFactInternetSalesBig_CustomerKey_SalesAmount
-ON dbo.RawFactInternetSalesBig
+IF @IndexTest NOT IN ('NONE', 'NONCLUSTERED', 'COLUMNSTORE')
+    PRINT 'Ogiltigt @IndexTest. AnvÃ¤nd NONE, NONCLUSTERED eller COLUMNSTORE.';
+
+-- Valfri stÃ¤dning efter att alla tester Ã¤r klara:
+-- DROP TABLE dbo.RawFactInternetSalesBig;
